@@ -1,0 +1,12 @@
+__pycache__/
+build/
+dist/
+MarketScan-venv/
+.vscode/
+*.txt
+!requirements.txt
+*.csv
+*.xlsx
+*.spec
+*.exe
+*.db
