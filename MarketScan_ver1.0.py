@@ -186,10 +186,12 @@ def save_data_to_csv(base_path, csv_data, filename_prefix):
 
 
 while True:
+    print(" ")
+    print("★★★★★★★★★★★★★★★★★★★★★")
     url = input("Amazon商品ページのURLをペーストしてエンターを押してください: ")
     #url = input()
 
-    #url = "https://www.amazon.co.jp/Anker-Charger-GaNPrime-USB-USB-C/dp/B09W9M89WS/ref=sr_1_1?__mk_ja_JP=%E3%82%AB%E3%82%BF%E3%82%AB%E3%83%8A&crid=30U0BSTB27SXP&dib=eyJ2IjoiMSJ9.1bzi2pdOe3j3A1gNHbL1DAihuuQmjZIKXF9uY7qsh7b0jenbUeuJvZN4nyaZZAkrmrtKwIxfjN7XSxBzqO2idbZ2EBCgjASST_MO3HCdu5xZuFlgfsF6b7DIA_I5nHe3lcVJJ7AEsMobx1lBx68kCozZwUHeMsSMWJPpY0cNgzksbqGh9EVVrAyvrXz23YNTcbNBYRcjvdzC_YCto0Imau6RxPeOQh81Ik7-YxAlNU1LOJ0t9SiGA8e5rHSlWu1xbJP87OQXOUAqGFQymwDG0MsxE_kUl7ZS5rIOslEcdMk.sXrY8ho8apy3Q0pOjf3AcQHdeYU82hkeGRRMjh01GjY&dib_tag=se&keywords=Anker%2B735%2BCharger%2B(GaNPrime%2B65W)%2B(USB%2BPD%2B%E5%85%85%E9%9B%BB%E5%99%A8A%2BUSB-A%2B%26%2BUSB-C%2B3%E3%83%9D%E3%83%BC%E3%83%88)%2B(%E3%83%96%E3%83%A9%E3%83%83%E3%82%AF)&qid=1708731297&sprefix=anker%2B735%2Bcharger%2Bganprime%2B65w%2Busb%2Bpd%2B%E5%85%85%E9%9B%BB%E5%99%A8a%2Busb-a%2B%26%2Busb-c%2B3%E3%83%9D%E3%83%BC%E3%83%88%2B%E3%83%96%E3%83%A9%E3%83%83%E3%82%AF%2B%2Caps%2C289&sr=8-1&th=1"
+    url = "https://www.amazon.co.jp/dp/B09J8WVSGD/ref=sspa_dk_detail_3?pd_rd_i=B09J8WVSGD&pd_rd_w=lr2cu&content-id=amzn1.sym.f293be60-50b7-49bc-95e8-931faf86ed1e&pf_rd_p=f293be60-50b7-49bc-95e8-931faf86ed1e&pf_rd_r=7983HPC5J640AA5MGBER&pd_rd_wg=QYah4&pd_rd_r=9550df7e-f4d5-4960-b5d4-edc14b6adc28&s=appliances&sp_csd=d2lkZ2V0TmFtZT1zcF9kZXRhaWw&th=1"
 
     title, price = get_amazon_product_info(url)
     print(f"Title: {title}, Price: {price}")
@@ -205,9 +207,9 @@ while True:
     base_url = "https://shopping.yahoo.co.jp/search?first=1&tab_ex=commerce&fr=shp-prop&mcr=d84c87ea8a3b637c3265e6fa772d12d2&ts=1708676353&sretry=1"
     search_url = f"{base_url}&p={encoded_query}&tab_ex=commerce&prom=1&X=2&sc_i=shopping-pc-web-result-item-sort_mdl-sortitem"
     print(search_url)
-
+    #search_url = "https://shopping.yahoo.co.jp/search?X=2&p=CORSAIR+Elite+CPU+%E3%82%AF%E3%83%BC%E3%83%A9%E3%83%BC+%E3%82%A2%E3%83%83%E3%83%97%E3%82%B0%E3%83%AC%E3%83%BC%E3%83%89%E5%B0%82%E7%94%A8+LCD+%E3%82%B9%E3%82%AF%E3%83%AA%E3%83%BC%E3%83%B3%E3%82%AD%E3%83%83%E3%83%88+CW-9060056-WW&first=1&ss_first=1&tab_ex=commerce&sc_i=shopping-pc-web-result-item-h_srch-kwd&ts=1708733442&mcr=bd273c123c0b7357bb7e01b5c0135157&sretry=1&area=13&b=31&view=list"
     elements = get_nodes_by_class(search_url, "LoopList__item")
-
+    print(len(elements))
     if not elements:
         print("Yahooショッピングの検索条件に一致する商品が見つかりませんでした。")
         continue
@@ -216,30 +218,40 @@ while True:
     csv_data = [["商品名", "店名", "URL（売れている順）", "商品数", "評価", "レビュー数"]]
     # 各要素のテキストを出力
     for element in elements:
-        print("--------------------------")
-        span_texts = [span.text.strip() for span in element.find_all('span') if span.text.strip() != '']
-        print(span_texts)
-        a_tag = element.find('a')['href']
-        #print(a_tag)
-        yahoo_element = get_nodes_by_class(a_tag, "elInfoMain")
-        yahoo_element_text = [span.text.strip() for span in yahoo_element[0].find_all('span') if span.text.strip() != '']
-        print(yahoo_element_text)
-        new_url = modify_url(a_tag, "search.html?X=4#CentSrchFilter1")
-        print(new_url)
-        yahoo_product_element = get_nodes_by_class(new_url, "mdSearchHeader")
-        yahoo_product_element_text = [span.text.strip() for span in yahoo_product_element[0].find_all('p') if span.text.strip() != '']
-        print(yahoo_product_element_text)
-        if int(span_texts[1].replace(",", "")) >= int(price.replace(",", "")):
-            col1 = span_texts[0]
-            col2 = yahoo_element_text[0]
-            col3 = new_url
-            col4 = extract_numbers_from_strings(yahoo_product_element_text)[0]
-            col5 = yahoo_element_text[1]
-            col6 = extract_number_from_string(yahoo_element_text[2])
+        try:
+            print("--------------------------")
+            span_texts = [span.text.strip() for span in element.find_all('span') if span.text.strip() != '']
+            print(span_texts)
 
-            csv_data.append([col1, col2, col3, col4, col5, col6])
-        else:
-            print("Amazonより値段が安いためデータは追加しません。")
+            a_tag = element.find('a')['href']
+            #print(a_tag)
+            yahoo_element = get_nodes_by_class(a_tag, "elInfoMain")
+            yahoo_element_text = [span.text.strip() for span in yahoo_element[0].find_all('span') if span.text.strip() != '']
+            while len(yahoo_element_text) < 3:
+                yahoo_element_text.append("")
+            print(yahoo_element_text)
+            
+            new_url = modify_url(a_tag, "search.html?X=4#CentSrchFilter1")
+            print(new_url)
+            
+            yahoo_product_element = get_nodes_by_class(new_url, "mdSearchHeader")
+            yahoo_product_element_text = [span.text.strip() for span in yahoo_product_element[0].find_all('p') if span.text.strip() != '']
+            print(yahoo_product_element_text)
+
+            if int(span_texts[1].replace(",", "")) >= int(price.replace(",", "")):
+                col1 = span_texts[0]
+                col2 = yahoo_element_text[0]
+                col3 = new_url
+                col4 = extract_numbers_from_strings(yahoo_product_element_text)[0]
+                col5 = yahoo_element_text[1]
+                col6 = extract_number_from_string(yahoo_element_text[2])
+
+                csv_data.append([col1, col2, col3, col4, col5, col6])
+            else:
+                print("Amazonより値段が安いためデータは追加しません。")
+        except:
+            print("予期せぬエラーです。")
+            continue
 
 
     # 使用例
