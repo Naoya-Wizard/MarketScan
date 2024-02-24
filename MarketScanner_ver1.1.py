@@ -129,7 +129,7 @@ def get_amazon_product_info(url):
     # ブラウザを閉じる
     driver.quit()
 
-    return search_query, price
+    return search_query[:75], price
 
 
 def get_nodes_by_class(search_url, class_names, boot_driver=False):
@@ -221,7 +221,7 @@ while True:
     url = input("Amazon商品ページのURLをペーストしてエンターを押してください: ")
     #url = input()
 
-    #url = "https://www.amazon.co.jp/dp/B0B3XQDS92/ref=sspa_dk_detail_1?pd_rd_i=B09G2WR4DY&pd_rd_w=rZsyy&content-id=amzn1.sym.bd54db78-5863-4bcf-a990-7929193ebe33&pf_rd_p=bd54db78-5863-4bcf-a990-7929193ebe33&pf_rd_r=7983HPC5J640AA5MGBER&pd_rd_wg=QYah4&pd_rd_r=9550df7e-f4d5-4960-b5d4-edc14b6adc28&s=appliances&sp_csd=d2lkZ2V0TmFtZT1zcF9kZXRhaWxfdGhlbWF0aWM&th=1"
+    #url = "https://www.amazon.co.jp/%E7%8E%84%E4%BA%BA%E5%BF%97%E5%90%91-%E3%82%B7%E3%83%B3%E3%82%B0%E3%83%AB%E3%83%95%E3%82%A1%E3%83%B3%E3%83%A2%E3%83%87%E3%83%AB-GF-GT1030-E2GB-LP-D5/dp/B07Q6X71JD/ref=sr_1_1?__mk_ja_JP=%E3%82%AB%E3%82%BF%E3%82%AB%E3%83%8A&crid=15FY2BD5DUDXA&dib=eyJ2IjoiMSJ9.hEDqcUBhiXI7gwUEQgak1jDUgY5o_4gsHT1CKvJLzoQnMa9ZWfEq4QCOwUMMT0_E7Tw_Cbpa7RdmoLZdobUR5XYyQkCA_0Mutto-Ac8KTX1jlQDr6jRBywEG7ikum2D7NPfJH3Jv2FcYRJxjfOwCGnweL59jEJWsZXv_JOvKQpalAgEMGRF2QIJR42BzAXnOgm6QElIFhVwRQEOlkIp6-VyukGqKbwJO1EatR2Or1pEOpSSFdOGbrPYhnN6-V5r_lLD_u2oIaSmD8h8Ee8TI72SP7KQ1pR58FK9sS6HxtWg.PX0S2ExBVAJRGaOHK58bNtgq-R2WP7IONUxfCx9j_-0&dib_tag=se&keywords=%E7%8E%84%E4%BA%BA%E5%BF%97%E5%90%91%2BNVIDIA%2BGeForce%2BGT%2B1030%2B%E6%90%AD%E8%BC%89%2B%E3%82%B0%E3%83%A9%E3%83%95%E3%82%A3%E3%83%83%E3%82%AF%E3%83%9C%E3%83%BC%E3%83%89%2B2GB%2B%E3%82%B7%E3%83%B3%E3%82%B0%E3%83%AB%E3%83%95%E3%82%A1%E3%83%B3%E3%83%A2%E3%83%87%E3%83%AB%2BGF-GT1030-E2GB%2FLP%2FD5&qid=1708770298&s=computers&sprefix=%E7%8E%84%E4%BA%BA%E5%BF%97%E5%90%91%2Bnvidia%2Bgeforce%2Bgt%2B1030%2B%E6%90%AD%E8%BC%89%2B%E3%82%B0%E3%83%A9%E3%83%95%E3%82%A3%E3%83%83%E3%82%AF%E3%83%9C%E3%83%BC%E3%83%89%2B2gb%2B%E3%82%B7%E3%83%B3%E3%82%B0%E3%83%AB%E3%83%95%E3%82%A1%E3%83%B3%E3%83%A2%E3%83%87%E3%83%AB%2Bgf-gt1030-e2gb%2Flp%2Fd5%2Ccomputers%2C280&sr=1-1&th=1"
 
     title, price = get_amazon_product_info(url)
     print(f"Title: {title}, Price: {price}")
@@ -245,9 +245,12 @@ while True:
         continue
 
 
-    csv_data = [["商品名", "店名", "URL（売れている順）", "商品数", "評価", "レビュー数"]]
+    csv_data = [["商品名", "Amazon価格", "ヤフー価格", "送料", "価格差", "利益率", "店名", "URL（売れている順）", "商品数", "評価", "レビュー数"]]
     # 各要素のテキストを出力
-    for element in elements:
+    for i, element in enumerate(elements):
+        # 現在の繰り返し回数が30回に達したらループを抜ける
+        if i == 30:  # インデックスは0から始まるので、30回目はインデックスが29
+            break        
         try:
             print("--------------------------")
             span_texts = [span.text.strip() for span in element.find_all('span') if span.text.strip() != '']
@@ -274,12 +277,14 @@ while True:
             
             # 「円」を含む要素のインデックスを探し、その一つ前の要素を取得
             for i, text in enumerate(span_texts):
-                if "円" in text:
+                if "円" == text:
                     if i > 0:  # 最初の要素でなければ、一つ前が存在する
                         previous_value = span_texts[i-1]
+                        #print(previous_value)
+                        break
                     else:
                         print("予期せぬエラーが発生しました。")
-                        csv_data.append(["エラー", "エラー", "エラー", "エラー", "エラー", "エラー"])
+                        csv_data.append(["エラー", "エラー", "エラー", "エラー", "エラー", "エラー", "エラー", "エラー", "エラー", "エラー", "エラー"])
                         continue
             
             if int(previous_value.replace(",", "")) >= int(price.replace(",", "")):
@@ -289,12 +294,51 @@ while True:
                 col4 = extract_numbers_from_strings(yahoo_product_element_text)[0]
                 col5 = yahoo_element_text[1]
                 col6 = extract_number_from_string(yahoo_element_text[2])
+                col7 = "¥" + price
+                #print("col7")
+                #print(col7)
+                col8 = "¥" + previous_value
+                #print("col8")
+                #print(col8)
 
-                csv_data.append([col1, col2, col3, col4, col5, col6])
+                for phrase in span_texts:
+                    # 「+送料」が含まれているかどうか確認し、その後の数字部分を抽出（カンマも含む）
+                    match = re.search(r'\+送料(\d{1,3}(,\d{3})*)', phrase)
+                    if match:
+                        # 数字が見つかった場合、カンマを削除して出力
+                        number = match.group(1)#.replace(',', '')  # group(1)で最初のキャプチャグループ（数字部分）を取得
+                        col9 = "¥" + number
+                        #print("col9")
+                        #print(col9)
+                        break
+                    else:
+                        number = "0"
+                        col9 = f"¥{number}"
+                        #print("col9")
+                        #print(col9)
+                
+                col10 = int(previous_value.replace(",", "")) - int(price.replace(",", "")) + int(number.replace(",", ""))
+                # 3桁ごとにカンマを挿入してフォーマット
+                col10 = format(col10, ",")
+
+                # 計算式を実行
+                col11 = ((int(previous_value.replace(",", "")) + int(number.replace(",", ""))) / int(price.replace(",", ""))) - 1
+
+                # 計算結果をパーセンテージ表示に変換
+                col11 = col11 * 100
+
+                # 計算結果を四捨五入して整数に変換
+                col11 = round(col11)
+
+                # パーセンテージを整数として文字列に変換し、「%」を追加
+                col11 = f"{col11}%"
+                #print(col11)
+
+                csv_data.append([col1, col7, col8, col9, col10, col11, col2, col3, col4, col5, col6])
             else:
                 print("Amazonより値段が安いためデータは追加しません。")
         except Exception as e:
-            csv_data.append(["エラー", "エラー", "エラー", "エラー", "エラー", "エラー"])
+            csv_data.append(["エラー", "エラー", "エラー", "エラー", "エラー", "エラー", "エラー", "エラー", "エラー", "エラー", "エラー"])
             print("予期せぬエラーが発生しました。")
             print(f"エラーメッセージ: {e}")
             # スタックトレースを出力
@@ -306,4 +350,5 @@ while True:
     save_data_to_csv(base_path, csv_data, title)
 
 #time.sleep(20)
+
 
