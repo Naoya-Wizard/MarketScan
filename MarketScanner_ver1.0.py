@@ -24,6 +24,7 @@ from datetime import datetime
 import os
 import ctypes
 from ctypes import wintypes
+import traceback
 
 # GUID for Desktop folder
 FOLDERID_Desktop = "{B4BFCC3A-DB2C-424C-B029-7FE99A87C641}"
@@ -68,11 +69,24 @@ def kill_process_by_name(process_name):
 # もしエラーが発生した場合、"chromedriver"プロセスを終了して再度試みます。
 def create_chrome_driver():
     try:
-        driver = webdriver.Chrome(ChromeDriverManager().install())
+        # Chromeのログレベルを変更するオプションを追加
+        # Chromeのオプションを設定
+        chrome_options = Options()
+        #chrome_options.add_argument("--headless")  # ヘッドレスモードを有効化
+        chrome_options.add_argument('--log-level=3')  # 致命的なエラーのみ表示
+        #chrome_options.add_argument('--disable-gpu')  # GPUハードウェアアクセラレーションを無効化（一部の環境で必要）
+        #chrome_options.add_argument('--window-size=1920x1080')  # ウィンドウサイズ指定
+        chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])  # DevToolsのログを無効化
+        # ChromeDriverManagerを使用してChromeDriverを自動で管理
+        driver = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options)
         return driver
     except Exception as e:
-        kill_process_by_name("chromedriver")
-        return webdriver.Chrome(ChromeDriverManager().install())
+        print(f"エラーが発生しました: {e}")
+        # エラー処理が必要な場合はここに記述
+        # kill_process_by_name("chromedriver")  # 必要に応じて実装
+        # エラー発生時の処理を再度試行する場合は、再度driverのインスタンスを生成
+        driver = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options)
+        return driver
 
 
 def get_text_by_id(driver, element_id, timeout=60, scroll_amount=300):
@@ -118,14 +132,27 @@ def get_amazon_product_info(url):
     return search_query, price
 
 
-def get_nodes_by_class(search_url, class_names):
-    #class_names = "LoopList__item"
-    # リクエストを送信
-    response = requests.get(search_url)
+def get_nodes_by_class(search_url, class_names, boot_driver=False):
+    # Chrome WebDriverのインスタンスを作成
+    if boot_driver:
+        driver = create_chrome_driver()  # ChromeDriverのパスが必要になる場合があります
+        driver.get(search_url)
+        time.sleep(2)
+        for i in range(3):
+            driver.execute_script(f"window.scrollBy(0, 30000);")
+            time.sleep(1)
+        # JavaScriptが実行された後のページのHTMLを取得
+        html = driver.page_source
+        soup = BeautifulSoup(html, "html.parser")
+        elements = soup.find_all(class_=class_names)
+        driver.quit()  # ブラウザを閉じる
+    else:
+        response = requests.get(search_url)
 
-    # HTML を解析
-    soup = BeautifulSoup(response.content, "html.parser")
-    elements = soup.find_all(class_=class_names) 
+        # HTML を解析
+        soup = BeautifulSoup(response.content, "html.parser")
+        elements = soup.find_all(class_=class_names) 
+
     return elements
 
 def modify_url(original_url, additional_path):
@@ -168,12 +195,16 @@ def extract_number_from_string(string):
 
 
 
+def sanitize_filename(filename):
+    # WindowsとUNIX/Linuxで禁止されている文字を置換
+    return re.sub(r'[<>:"/\\|?*]', '_', filename)
+
 def save_data_to_csv(base_path, csv_data, filename_prefix):
-    """
-    指定されたパスにデータをCSVファイルとして保存します。
-    """
+    # ファイル名のサニタイズ
+    sanitized_prefix = sanitize_filename(filename_prefix)
+    
     current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{filename_prefix}_{current_time}.csv"
+    filename = f"{sanitized_prefix}_{current_time}.csv"
     full_path = os.path.join(base_path, filename)
 
     with open(full_path, mode='w', newline='', encoding='cp932', errors='ignore') as file:
@@ -191,7 +222,7 @@ while True:
     url = input("Amazon商品ページのURLをペーストしてエンターを押してください: ")
     #url = input()
 
-    url = "https://www.amazon.co.jp/dp/B09J8WVSGD/ref=sspa_dk_detail_3?pd_rd_i=B09J8WVSGD&pd_rd_w=lr2cu&content-id=amzn1.sym.f293be60-50b7-49bc-95e8-931faf86ed1e&pf_rd_p=f293be60-50b7-49bc-95e8-931faf86ed1e&pf_rd_r=7983HPC5J640AA5MGBER&pd_rd_wg=QYah4&pd_rd_r=9550df7e-f4d5-4960-b5d4-edc14b6adc28&s=appliances&sp_csd=d2lkZ2V0TmFtZT1zcF9kZXRhaWw&th=1"
+    #url = "https://www.amazon.co.jp/dp/B0B3XQDS92/ref=sspa_dk_detail_1?pd_rd_i=B09G2WR4DY&pd_rd_w=rZsyy&content-id=amzn1.sym.bd54db78-5863-4bcf-a990-7929193ebe33&pf_rd_p=bd54db78-5863-4bcf-a990-7929193ebe33&pf_rd_r=7983HPC5J640AA5MGBER&pd_rd_wg=QYah4&pd_rd_r=9550df7e-f4d5-4960-b5d4-edc14b6adc28&s=appliances&sp_csd=d2lkZ2V0TmFtZT1zcF9kZXRhaWxfdGhlbWF0aWM&th=1"
 
     title, price = get_amazon_product_info(url)
     print(f"Title: {title}, Price: {price}")
@@ -208,7 +239,7 @@ while True:
     search_url = f"{base_url}&p={encoded_query}&tab_ex=commerce&prom=1&X=2&sc_i=shopping-pc-web-result-item-sort_mdl-sortitem"
     print(search_url)
     #search_url = "https://shopping.yahoo.co.jp/search?X=2&p=CORSAIR+Elite+CPU+%E3%82%AF%E3%83%BC%E3%83%A9%E3%83%BC+%E3%82%A2%E3%83%83%E3%83%97%E3%82%B0%E3%83%AC%E3%83%BC%E3%83%89%E5%B0%82%E7%94%A8+LCD+%E3%82%B9%E3%82%AF%E3%83%AA%E3%83%BC%E3%83%B3%E3%82%AD%E3%83%83%E3%83%88+CW-9060056-WW&first=1&ss_first=1&tab_ex=commerce&sc_i=shopping-pc-web-result-item-h_srch-kwd&ts=1708733442&mcr=bd273c123c0b7357bb7e01b5c0135157&sretry=1&area=13&b=31&view=list"
-    elements = get_nodes_by_class(search_url, "LoopList__item")
+    elements = get_nodes_by_class(search_url, "LoopList__item", True)
     print(len(elements))
     if not elements:
         print("Yahooショッピングの検索条件に一致する商品が見つかりませんでした。")
@@ -221,8 +252,12 @@ while True:
         try:
             print("--------------------------")
             span_texts = [span.text.strip() for span in element.find_all('span') if span.text.strip() != '']
+            span_texts = [item for item in span_texts if "お取り寄せ" not in item]
             print(span_texts)
-
+            """
+            if re.match(r'.*円分$', span_texts[0]):
+                del span_texts[0]  # 0番目が「〇〇円分」である場合、削除
+            """
             a_tag = element.find('a')['href']
             #print(a_tag)
             yahoo_element = get_nodes_by_class(a_tag, "elInfoMain")
@@ -237,8 +272,18 @@ while True:
             yahoo_product_element = get_nodes_by_class(new_url, "mdSearchHeader")
             yahoo_product_element_text = [span.text.strip() for span in yahoo_product_element[0].find_all('p') if span.text.strip() != '']
             print(yahoo_product_element_text)
-
-            if int(span_texts[1].replace(",", "")) >= int(price.replace(",", "")):
+            
+            # 「円」を含む要素のインデックスを探し、その一つ前の要素を取得
+            for i, text in enumerate(span_texts):
+                if "円" in text:
+                    if i > 0:  # 最初の要素でなければ、一つ前が存在する
+                        previous_value = span_texts[i-1]
+                    else:
+                        print("予期せぬエラーが発生しました。")
+                        csv_data.append(["エラー", "エラー", "エラー", "エラー", "エラー", "エラー"])
+                        continue
+            
+            if int(previous_value.replace(",", "")) >= int(price.replace(",", "")):
                 col1 = span_texts[0]
                 col2 = yahoo_element_text[0]
                 col3 = new_url
@@ -249,9 +294,12 @@ while True:
                 csv_data.append([col1, col2, col3, col4, col5, col6])
             else:
                 print("Amazonより値段が安いためデータは追加しません。")
-        except:
-            print("予期せぬエラーです。")
-            continue
+        except Exception as e:
+            csv_data.append(["エラー", "エラー", "エラー", "エラー", "エラー", "エラー"])
+            print("予期せぬエラーが発生しました。")
+            print(f"エラーメッセージ: {e}")
+            # スタックトレースを出力
+            traceback.print_exc()
 
 
     # 使用例
