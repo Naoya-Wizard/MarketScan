@@ -2,6 +2,7 @@ __pycache__/
 build/
 dist/
 MarketScan-venv/
+testfile/
 .vscode/
 *.txt
 !requirements.txt

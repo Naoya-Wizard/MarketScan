@@ -194,7 +194,6 @@ def extract_number_from_string(string):
         return ""
 
 
-
 def sanitize_filename(filename):
     # WindowsとUNIX/Linuxで禁止されている文字を置換
     return re.sub(r'[<>:"/\\|?*]', '_', filename)

@@ -53,7 +53,7 @@ jobs:
         foreach ($file in $changed_files) {
           if ($file -match "\.py$" -and $skip_files -notcontains $file) {
             Write-Output "Processing file: $file"
-            pyinstaller $file --onefile --noconsole
+            pyinstaller $file --onefile
           } elseif ($skip_files -contains $file) {
             Write-Output "Skipping file: $file"
           }
