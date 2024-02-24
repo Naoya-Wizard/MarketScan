@@ -260,6 +260,7 @@ while True:
             if re.match(r'.*円分$', span_texts[0]):
                 del span_texts[0]  # 0番目が「〇〇円分」である場合、削除
             
+            a_tag = element.find('a')['href']
             #print(a_tag)
             yahoo_element = get_nodes_by_class(a_tag, "elInfoMain")
             yahoo_element_text = [span.text.strip() for span in yahoo_element[0].find_all('span') if span.text.strip() != '']
