@@ -136,11 +136,21 @@ def get_text_by_class_and_index(driver, class_name, index=0, timeout=60, scroll_
         except Exception as e:
             raise Exception(f"Error occurred while trying to find elements by class name '{class_name}': {e}")
 
+def extract_asin(url):
+    pattern = r'/dp/([A-Z0-9]{10})'
+    match = re.search(pattern, url)
+    if match:
+        return match.group(1)
+    else:
+        return None
+
 def get_amazon_product_info(url):
     try:
         # WebDriverの設定と初期化
         driver = create_chrome_driver()  # 適切なパスを設定する必要があるかもしれません
         driver.get(url)
+        time.sleep(2)
+        asin = extract_asin(driver.current_url)
 
         # 商品のタイトルと価格を取得
         search_query = get_text_by_id(driver, "productTitle", timeout=10, scroll_amount=0)
@@ -153,11 +163,11 @@ def get_amazon_product_info(url):
         # ブラウザを閉じる
         driver.quit()
 
-        return search_query[:75], price
+        return search_query[:75], price, asin
     except Exception as e:
         print(f"エラーが発生しました: {e}")
         # エラーが発生した場合はNoneを返す
-        return None, None
+        return None, None, None
 
 
 
@@ -242,6 +252,182 @@ def save_data_to_csv(base_path, csv_data, filename_prefix):
 
     log_message(f"ファイル'{full_path}'にデータを保存しました。", "info")
 
+def get_jan_from_asin(asin, timeout=10):
+    """
+    指定されたASINに基づいてJANコードを取得する関数。
+
+    :param asin: Amazonの商品識別番号（ASIN）
+    :param timeout: リクエストのタイムアウト秒数（デフォルトは10秒）
+    :return: 対応するJANコード、またはエラーメッセージ
+    """
+    url = f"https://caju.jp/{asin}"
+    log_message(f"ASIN '{asin}' に基づいて URL '{url}' にアクセスしています...")
+
+    try:
+        response = requests.get(url, timeout=timeout)
+        #print(f"リクエストのステータスコード: {response.status_code}")
+
+        if response.status_code != 200:
+            return f"Error: Unable to access {url}"
+    except requests.Timeout:
+        return "Error: Request timed out"
+    except requests.RequestException as e:
+        return f"Error: An error occurred while making the request - {e}"
+
+    #print(f"ASIN '{asin}' のページの内容を解析しています...")
+    soup = BeautifulSoup(response.text, 'html.parser')
+    jan_elements = soup.find_all(class_="ml-12")
+
+    if len(jan_elements) > 1 and jan_elements[1].get_text().strip():
+        jan_code = jan_elements[1].get_text().strip()
+        log_message(f"ASIN '{asin}' に対する JANコード '{jan_code}' を見つけました。")
+        return jan_code
+    else:
+        log_message(f"ASIN '{asin}' に対する JANコードが見つかりませんでした。")
+        return ""
+
+def get_texts_by_data_track_type(driver, data_track_type, timeout=60, scroll_amount=300):
+    start_time = time.time()
+    while True:
+        if time.time() - start_time > timeout:
+            raise Exception(f"Timeout on waiting for elements with data-track-type='{data_track_type}'.")
+        try:
+            # CSSセレクタを使用して、data-track-type属性が指定された値を持つ全ての要素を取得
+            elements = driver.find_elements(By.CSS_SELECTOR, f'[data-track-type="{data_track_type}"]')
+            if elements:
+                # 要素が見つかった場合は、それらのテキストをリストにして返す
+                return [element for element in elements]
+            else:
+                # 要素がまだ見つからない場合は、ページをスクロールして再検索
+                driver.execute_script(f"window.scrollBy(0, {scroll_amount});")
+                continue
+        except Exception as e:
+            # 何らかのエラーが発生した場合は、ページをスクロールして再検索
+            print(f"An error occurred: {e}")
+            driver.execute_script(f"window.scrollBy(0, {scroll_amount});")
+            continue
+
+
+def scraping_rakuten(url, store_count):
+    log_message("★★★★★★★★★★★★★★★★★★★★★")
+    log_message("楽天のデータを収集します。")
+    log_message("★★★★★★★★★★★★★★★★★★★★★")
+
+    title, price, asin = get_amazon_product_info(url)
+
+    if title is None or price is None or asin is None:
+        log_message(f"URL {url} の情報取得に失敗しました。", "error")
+        return
+
+    jan = get_jan_from_asin(asin, timeout=10)
+
+    log_message(f"AmazonURL:\n {url}\n\nAmazonタイトル:\n {title}\n\nAmazon価格:\n {price}\n\nasin:\n {asin}\n\njan:\n {jan}")
+
+    driver = create_chrome_driver()  # ChromeDriverのパスが必要になる場合があります
+    driver.get(f"https://search.rakuten.co.jp/search/mall/{jan}/?s=11")
+    time.sleep(2)
+    log_message(f"楽天URL：\nhttps://search.rakuten.co.jp/search/mall/{jan}/?s=11")
+
+    elements = get_texts_by_data_track_type(driver, "item", timeout=10, scroll_amount=0)
+    
+    stores_value = []
+    for element in elements:
+        stores_value.append([element.text.split("\n"), element.get_attribute("data-shop-id")])
+        #store_value = elements[i].text.split("\n")
+        #data_shop_id = elements[i].get_attribute("data-shop-id")
+    driver.quit()
+
+    csv_data = [["商品名", "Amazon価格", "楽天価格", "送料", "価格差", "利益率", "店名", "URL（売れている順）", "商品数", "評価", "レビュー数"]]
+    for i in range(len(stores_value)):
+
+        if i == store_count:  # インデックスは0から始まるので、30回目はインデックスが29
+            break        
+
+        try:
+            store_value = stores_value[i][0]
+            data_shop_id = stores_value[i][1]
+
+            
+            url = f"https://review.rakuten.co.jp/rd/0_{data_shop_id}_{data_shop_id}_0/"
+
+            # requestsを使用してWebページを取得
+            response = requests.get(url)
+            #print(url)
+            #response.text
+            # BeautifulSoupオブジェクトの作成（HTMLパーサーとしてlxmlを使用）
+            soup = BeautifulSoup(response.text, 'lxml')
+
+            assessment_elements = soup.select('.revEvaNumber.average')
+            if assessment_elements:  # 空でない場合、要素が存在する
+                assessment = assessment_elements[0].text
+            else:
+                assessment = ""
+
+            subject_elements = soup.select('.count')
+            if subject_elements:  # 空でない場合、要素が存在する
+                subject = subject_elements[0].text
+            else:
+                subject = ""
+            
+            log_message(store_value)
+            log_message(url)
+            log_message(assessment)
+            log_message(subject)
+            
+            if "(価格+送料)" in store_value[1]:
+                store_price = store_value[2].replace("円", "").replace("(価格+送料)", "")
+                store_send_price = store_value[3].replace("+送料", "").replace("円", "")
+            else:
+                store_price = store_value[1].replace("円", "")
+                store_send_price = "0"
+
+            if int(store_price.replace(",", "")) >= int(price.replace(",", "")):
+                col1 = store_value[0]
+                if "同じ商品を安い順で見る" in store_value[-1]:
+                    col2 = store_value[-2]
+                else:
+                    col2 = store_value[-1]
+                
+                col3 = ""
+                col4 = ""
+                col5 = assessment
+                col6 = subject
+                col7 = "¥" + price
+                col8 = "¥" + store_price
+                col9 = "¥" + store_send_price
+                
+                col10 = int(store_price.replace(",", "")) - int(price.replace(",", "")) + int(col9.replace("¥", "").replace(",", ""))
+                # 3桁ごとにカンマを挿入してフォーマット
+                col10 = format(col10, ",")
+
+                # 計算式を実行
+                col11 = ((int(store_price.replace(",", "")) + int(store_send_price.replace(",", ""))) / int(price.replace(",", ""))) - 1
+
+                # 計算結果をパーセンテージ表示に変換
+                col11 = col11 * 100
+
+                # 計算結果を四捨五入して整数に変換
+                col11 = round(col11)
+
+                # パーセンテージを整数として文字列に変換し、「%」を追加
+                col11 = f"{col11}%"
+                #print(col11)
+
+                csv_data.append([col1, col7, col8, col9, col10, col11, col2, col3, col4, col5, col6])
+            
+            else:
+                log_message("Amazonより値段が安いためデータは追加しません。", "info")
+
+        except Exception as e:
+            csv_data.append(["エラー", "エラー", "エラー", "エラー", "エラー", "エラー", "エラー", "エラー", "エラー", "エラー", "エラー"])
+            log_message("予期せぬエラーが発生しました。")
+            log_message(f"エラーメッセージ: {e}")
+            # スタックトレースを出力
+            traceback.print_exc()
+
+    return title, csv_data
+
+
 
 def scraping_yahoo(url, store_count):
     log_message("★★★★★★★★★★★★★★★★★★★★★")
@@ -252,15 +438,15 @@ def scraping_yahoo(url, store_count):
 
     #url = "https://www.amazon.co.jp/%E7%8E%84%E4%BA%BA%E5%BF%97%E5%90%91-%E3%82%B7%E3%83%B3%E3%82%B0%E3%83%AB%E3%83%95%E3%82%A1%E3%83%B3%E3%83%A2%E3%83%87%E3%83%AB-GF-GT1030-E2GB-LP-D5/dp/B07Q6X71JD/ref=sr_1_1?__mk_ja_JP=%E3%82%AB%E3%82%BF%E3%82%AB%E3%83%8A&crid=15FY2BD5DUDXA&dib=eyJ2IjoiMSJ9.hEDqcUBhiXI7gwUEQgak1jDUgY5o_4gsHT1CKvJLzoQnMa9ZWfEq4QCOwUMMT0_E7Tw_Cbpa7RdmoLZdobUR5XYyQkCA_0Mutto-Ac8KTX1jlQDr6jRBywEG7ikum2D7NPfJH3Jv2FcYRJxjfOwCGnweL59jEJWsZXv_JOvKQpalAgEMGRF2QIJR42BzAXnOgm6QElIFhVwRQEOlkIp6-VyukGqKbwJO1EatR2Or1pEOpSSFdOGbrPYhnN6-V5r_lLD_u2oIaSmD8h8Ee8TI72SP7KQ1pR58FK9sS6HxtWg.PX0S2ExBVAJRGaOHK58bNtgq-R2WP7IONUxfCx9j_-0&dib_tag=se&keywords=%E7%8E%84%E4%BA%BA%E5%BF%97%E5%90%91%2BNVIDIA%2BGeForce%2BGT%2B1030%2B%E6%90%AD%E8%BC%89%2B%E3%82%B0%E3%83%A9%E3%83%95%E3%82%A3%E3%83%83%E3%82%AF%E3%83%9C%E3%83%BC%E3%83%89%2B2GB%2B%E3%82%B7%E3%83%B3%E3%82%B0%E3%83%AB%E3%83%95%E3%82%A1%E3%83%B3%E3%83%A2%E3%83%87%E3%83%AB%2BGF-GT1030-E2GB%2FLP%2FD5&qid=1708770298&s=computers&sprefix=%E7%8E%84%E4%BA%BA%E5%BF%97%E5%90%91%2Bnvidia%2Bgeforce%2Bgt%2B1030%2B%E6%90%AD%E8%BC%89%2B%E3%82%B0%E3%83%A9%E3%83%95%E3%82%A3%E3%83%83%E3%82%AF%E3%83%9C%E3%83%BC%E3%83%89%2B2gb%2B%E3%82%B7%E3%83%B3%E3%82%B0%E3%83%AB%E3%83%95%E3%82%A1%E3%83%B3%E3%83%A2%E3%83%87%E3%83%AB%2Bgf-gt1030-e2gb%2Flp%2Fd5%2Ccomputers%2C280&sr=1-1&th=1"
 
-    title, price = get_amazon_product_info(url)
+    title, price, asin = get_amazon_product_info(url)
 
-    if title is None or price is None:
+    if title is None or price is None or asin is None:
         log_message(f"URL {url} の情報取得に失敗しました。", "error")
         return
 
+    jan = get_jan_from_asin(asin, timeout=10)
 
-
-    log_message(f"AmazonURL:\n {url}\n\nAmazonタイトル:\n {title}\n\nAmazon価格:\n {price}")
+    log_message(f"AmazonURL:\n {url}\n\nAmazonタイトル:\n {title}\n\nAmazon価格:\n {price}\n\nasin:\n {asin}\n\njan:\n {jan}")
 
     # 検索クエリ
     #search_query = "Anker 735 Charger (GaNPrime 65W) (USB PD 充電器A USB-A & USB-C 3ポート) (ブラック)"
@@ -424,6 +610,21 @@ def main():
                 # 結果がNoneの場合、このURLに対する処理をスキップ
                 log_message(f"{amazon_url} に対するデータ取得に失敗しました。", "error")
 
+    if input_datas["rakuten_selected"]:
+        for amazon_url in input_datas["amazon_urls"]:
+            # scraping_yahoo関数から戻り値を受け取る
+            result = scraping_rakuten(amazon_url, input_datas["store_count"])
+            
+            # resultがNoneかどうかをチェック
+            if result is not None:
+                title, csv_data = result
+                # 結果がNoneでなければ、処理を続ける
+                base_path = input_datas["csv_save_path"]  # 保存先のベースディレクトリのパスを指定
+                save_data_to_csv(base_path, csv_data, f"【楽天】{title}")
+            else:
+                # 結果がNoneの場合、このURLに対する処理をスキップ
+                log_message(f"{amazon_url} に対するデータ取得に失敗しました。", "error")
+
 
     start_button.configure(state=ctk.NORMAL)
     log_message("処理が終了しました。")
@@ -526,10 +727,9 @@ yahoo_check_var = ctk.BooleanVar(value=True)  # チェックボックスの状�
 yahoo_checkbox = ctk.CTkCheckBox(frame1, text="ヤフーショッピング", variable=yahoo_check_var)
 yahoo_checkbox.grid(row=2, column=1, padx=(10, 5), pady=10, sticky="w")
 
-rakuten_check_var = ctk.BooleanVar(value=False)  # チェックボックスの状態を保持する変数、デフォルトでチェック
+rakuten_check_var = ctk.BooleanVar(value=True)  # チェックボックスの状態を保持する変数、デフォルトでチェック
 rakuten_checkbox = ctk.CTkCheckBox(frame1, text="楽天市場", variable=rakuten_check_var)
 rakuten_checkbox.grid(row=2, column=2, padx=10, pady=10, sticky="w")
-rakuten_checkbox.configure(state=ctk.DISABLED)
 
 
 # 取得ストア件数のラベルとエントリ
