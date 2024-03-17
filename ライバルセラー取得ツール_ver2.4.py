@@ -162,7 +162,6 @@ def get_amazon_product_info(url, retry=True):
     try:
         # WebDriverの設定と初期化
         driver = create_chrome_driver()  # create_chrome_driver 関数を適切に定義する必要があります
-        time.sleep(2)
         driver.get(url)
         time.sleep(2)
         asin = extract_asin(driver.current_url)  # extract_asin 関数を適切に定義する必要があります
