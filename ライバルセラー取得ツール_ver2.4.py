@@ -71,9 +71,23 @@ def kill_process_by_name(process_name):
             psutil.Process(proc.info["pid"]).terminate()
 
 
+def is_driver_active(driver):
+    try:
+        # driverのsession_idとcurrent_urlにアクセスしてみる
+        # WebDriverが閉じられている場合、これらの操作はエラーを引き起こす
+        _ = driver.session_id
+        _ = driver.current_url
+        return True
+    except:
+        return False
+
+driver = None
 # ChromeのWebDriverのインスタンスを生成します。
 # もしエラーが発生した場合、"chromedriver"プロセスを終了して再度試みます。
 def create_chrome_driver():
+    global driver
+    if driver is not None and is_driver_active(driver):
+        return driver
     try:
         # Chromeのログレベルを変更するオプションを追加
         # Chromeのオプションを設定
@@ -144,30 +158,36 @@ def extract_asin(url):
     else:
         return None
 
-def get_amazon_product_info(url):
+def get_amazon_product_info(url, retry=True):
     try:
         # WebDriverの設定と初期化
-        driver = create_chrome_driver()  # 適切なパスを設定する必要があるかもしれません
+        driver = create_chrome_driver()  # create_chrome_driver 関数を適切に定義する必要があります
+        time.sleep(2)
         driver.get(url)
         time.sleep(2)
-        asin = extract_asin(driver.current_url)
+        asin = extract_asin(driver.current_url)  # extract_asin 関数を適切に定義する必要があります
 
         # 商品のタイトルと価格を取得
-        search_query = get_text_by_id(driver, "productTitle", timeout=10, scroll_amount=0)
-        #price = get_text_by_class(driver, "a-price-whole", timeout=10, scroll_amount=0)
+        search_query = get_text_by_id(driver, "productTitle", timeout=10, scroll_amount=0)  # get_text_by_id 関数を適切に定義する必要があります
+        price = ""
         for i in range(100):
-            price = get_text_by_class_and_index(driver, "a-price-whole", i, timeout=10, scroll_amount=0)
+            price = get_text_by_class_and_index(driver, "a-price-whole", i, timeout=10, scroll_amount=0)  # get_text_by_class_and_index 関数を適切に定義する必要があります
             if price != "":
                 break
 
         # ブラウザを閉じる
-        driver.quit()
+        #driver.quit()
 
         return search_query[:75], price, asin
     except Exception as e:
         print(f"エラーが発生しました: {e}")
-        # エラーが発生した場合はNoneを返す
-        return None, None, None
+        if retry:
+            print("再試行します。")
+            return get_amazon_product_info(url, retry=False)  # 再帰呼び出し時にはretryをFalseに設定
+        else:
+            # 再試行後のエラーの場合はNoneを返す
+            return None, None, None
+
 
 
 
@@ -184,7 +204,7 @@ def get_nodes_by_class(search_url, class_names, boot_driver=False):
         html = driver.page_source
         soup = BeautifulSoup(html, "html.parser")
         elements = soup.find_all(class_=class_names)
-        driver.quit()  # ブラウザを閉じる
+        #driver.quit()  # ブラウザを閉じる
     else:
         response = requests.get(search_url)
 
@@ -335,7 +355,7 @@ def scraping_rakuten(url, store_count):
         stores_value.append([element.text.split("\n"), element.get_attribute("data-shop-id")])
         #store_value = elements[i].text.split("\n")
         #data_shop_id = elements[i].get_attribute("data-shop-id")
-    driver.quit()
+    #driver.quit()
 
     csv_data = [["商品名", "Amazon価格", "楽天価格", "送料", "価格差", "利益率", "店名", "URL（売れている順）", "商品数", "評価", "レビュー数"]]
     for i in range(len(stores_value)):
@@ -663,6 +683,7 @@ def main():
 
 
     start_button.configure(state=ctk.NORMAL)
+    driver.quit()
     log_message("処理が終了しました。")
 
 
@@ -718,7 +739,7 @@ ctk.set_appearance_mode("Dark")  # 'Dark' または 'Light'
 ctk.set_default_color_theme("blue")  # 'blue' (デフォルト), 'dark-blue', 'green'
 
 root = ctk.CTk()
-root.title("ライバルセラー抽出ツール_ver2.0")
+root.title("ライバルセラー抽出ツール_ver2.4")
 root.geometry("970x500")
 
 #root.grid_rowconfigure(1, weight=1)  # 1行目の高さを固定
@@ -730,7 +751,7 @@ bold_font2 = ctk.CTkFont(family="Arial", size=14)
 
 # 説明テキストを表示するラベルを作成
 description_label = ctk.CTkLabel(root,
-                                  text="Amazonの商品ページを収集しているストアを抽出するツールです。\n以下の項目を入力して取得実行を押下すると、商品ごとにcsvが自動で保存されます。",
+                                  text="Amazonと同じ商品を出品しているストアを抽出するツールです。\n以下の項目を入力して取得実行を押下すると、商品ごとにcsvが自動で保存されます。",
                                   wraplength=680,  # ラベルのテキストの折り返し幅を指定
                                   font=bold_font,  # 既に定義した太文字フォントを使用
                                   anchor='e', 
