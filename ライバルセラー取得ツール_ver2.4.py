@@ -344,6 +344,11 @@ def scraping_rakuten(url, store_count):
             break
 
         log_message("--------------------------")
+
+        if store_count > len(elements):
+            log_message("{}/{}個目".format(i + 1, len(stores_value)))
+        else:
+            log_message("{}/{}個目".format(i + 1, store_count))
         
         try:
             store_value = stores_value[i][0]
@@ -500,6 +505,12 @@ def scraping_yahoo(url, store_count):
             break        
         try:
             log_message("--------------------------")
+
+            if store_count > len(elements):
+                log_message("{}/{}個目".format(i + 1, len(elements)))
+            else:
+                log_message("{}/{}個目".format(i + 1, store_count))
+                
             span_texts = [span.text.strip() for span in element.find_all('span') if span.text.strip() != '']
             span_texts = [item for item in span_texts if "お取り寄せ" not in item]
             log_message(span_texts)
