@@ -632,7 +632,7 @@ def main():
         return
     
     if input_datas["yahoo_selected"]:
-        for amazon_url in input_datas["amazon_urls"]:
+        for i, amazon_url in enumerate(input_datas["amazon_urls"]):
             # scraping_yahoo関数から戻り値を受け取る
             result = scraping_yahoo(amazon_url, input_datas["store_count"])
             
@@ -641,13 +641,13 @@ def main():
                 title, csv_data = result
                 # 結果がNoneでなければ、処理を続ける
                 base_path = input_datas["csv_save_path"]  # 保存先のベースディレクトリのパスを指定
-                save_data_to_csv(base_path, csv_data, f"【ヤフーショッピング】{title}")
+                save_data_to_csv(base_path, csv_data, f"【ヤ{i+1}】{title}")
             else:
                 # 結果がNoneの場合、このURLに対する処理をスキップ
                 log_message(f"{amazon_url} に対するデータ取得に失敗しました。", "error")
 
     if input_datas["rakuten_selected"]:
-        for amazon_url in input_datas["amazon_urls"]:
+        for i, amazon_url in enumerate(input_datas["amazon_urls"]):
             # scraping_yahoo関数から戻り値を受け取る
             result = scraping_rakuten(amazon_url, input_datas["store_count"])
             
@@ -656,7 +656,7 @@ def main():
                 title, csv_data = result
                 # 結果がNoneでなければ、処理を続ける
                 base_path = input_datas["csv_save_path"]  # 保存先のベースディレクトリのパスを指定
-                save_data_to_csv(base_path, csv_data, f"【楽天】{title}")
+                save_data_to_csv(base_path, csv_data, f"【楽{i+1}】{title}")
             else:
                 # 結果がNoneの場合、このURLに対する処理をスキップ
                 log_message(f"{amazon_url} に対するデータ取得に失敗しました。", "error")
