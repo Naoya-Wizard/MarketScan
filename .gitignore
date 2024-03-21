@@ -14,3 +14,5 @@ testfile/
 *.mp4
 *.png
 rakuten-test.py
+test_0318
+test-*.py
